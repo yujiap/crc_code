@@ -1,0 +1,11 @@
+**/*.sh
+**/*.Rhistory
+**/*.Rapp.history
+**/*.Rmd
+**/*.html
+**/.DS_Store
+examples/raw_data/
+examples/*.txt
+**/*.out
+**/*.pdf
+**/*.RDS
