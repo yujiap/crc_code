@@ -1,10 +1,10 @@
-.PHONY: ex crc20 crc100 crc500 pam20 pam100 pam500 dlda20 dlda100 dlda500 glmnet20 glmnet100 glmnet500 plot_sim all_analysis
+.PHONY: examples crc20 crc100 crc500 pam20 pam100 pam500 dlda20 dlda100 dlda500 glmnet20 glmnet100 glmnet500 plot_sim all_analysis
 
-ex:
+examples:
 	echo "Cleaning out old output..."
 	find /examples/ -type f -name "table_SE.txt" -exec rm -f {} \;
 	find /examples/ -type f -name "table_acc.txt" -exec rm -f {} \;
-	cd /examples/ && make examples_tables
+	cd /examples/ && make examples_tables_figs
 
 crc20:
 	echo "Cleaning out old output..."
@@ -70,7 +70,7 @@ plot_sim:
 	find /simulations/ -type f -name "Rplots.pdf" -exec rm -f {} \;
 
 all_analysis:
-	make ex
+	make examples
 	make glmnet20
 	make crc20
 	make dlda20
