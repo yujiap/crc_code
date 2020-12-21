@@ -1,4 +1,4 @@
-.PHONY: examples crc20 crc100 crc500 pam20 pam100 pam500 dlda20 dlda100 dlda500 glmnet20 glmnet100 glmnet500 plot_sim all_analysis
+.PHONY: examples crc20 crc100 crc500 pam20 pam100 pam500 dlda20 dlda100 dlda500 glmnet20 glmnet100 glmnet500 simulations all_analysis
 
 examples:
 	echo "Cleaning out old output..."
@@ -65,12 +65,7 @@ glmnet500:
 	find /simulations/sims_glmnet/ -type f -name "sim_p500000*.RDS" -exec rm -f {} \;
 	cd /simulations/sims_glmnet/ && Rscript sim_p500k.R
 
-plot_sim:
-	cd /simulations/ && Rscript plots.R
-	find /simulations/ -type f -name "Rplots.pdf" -exec rm -f {} \;
-
-all_analysis:
-	make examples
+simulations:
 	make glmnet20
 	make crc20
 	make dlda20
@@ -83,4 +78,9 @@ all_analysis:
 	make crc500
 	make dlda500
 	make pam500
-	make plot_sim
+	cd /simulations/ && Rscript plots.R
+	find /simulations/ -type f -name "Rplots.pdf" -exec rm -f {} \;
+
+all_analysis:
+	make examples
+	make simulations
