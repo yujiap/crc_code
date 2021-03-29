@@ -18,4 +18,4 @@ make simulations
 To reproduce the examples only, run the following from the command line:
 make examples
 
-Note that these make commands make take a long time to execute. Thus, it is recommended to run the code on a computing cluster if possible.
+Note that these make commands may take a long time to execute. Thus, it is recommended to run the code on a computing cluster if possible.
