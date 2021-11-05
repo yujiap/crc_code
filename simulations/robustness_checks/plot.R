@@ -3,6 +3,7 @@ library(tibble)
 library(dplyr)
 library(knitr)
 library(latex2exp)
+library(ggpubr)
 sem <- function(x) return(sd(x)/sqrt(length(x)))
 
 ## Preps tibble for plotting
@@ -170,137 +171,6 @@ ggsave('crc_ltype_all.pdf', plt, width = 8, height = 10)
 ## ALPHA
 ## ======================================================================================================
 
-## alpha: Accuracy vs n
-sim_crc <- prep_tibble("sim_alpha.RDS")
-# Keep only alpha = 1 result (for clarity)
-sim_crc <- sim_crc[!(sim_crc$model == "simple" & as.numeric(sim_crc$alpha.rs.level) < 1),]
-plt <- sim_crc %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "S") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = "#F8766D", size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = "#F8766D", size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = "#F8766D", size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('crcS_alpha.pdf', plt, width = 10, height = 4)
-
-plt <- sim_crc %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "L") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = "#00BA38", size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = "#00BA38", size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = "#00BA38", size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('crcL_alpha.pdf', plt, width = 10, height = 4)
-
-plt <- sim_crc %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "C") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = "#619CFF", size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = "#619CFF", size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = "#619CFF", size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('crcC_alpha.pdf', plt, width = 10, height = 4)
-
-sim <- prep_tibble("sim_alpha_other.RDS")
-# Keep only alpha = 1 result (for clarity)
-sim <- sim[!(sim$model == "simple" & as.numeric(sim$alpha.rs.level) < 1),]
-plt <- sim %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "glmnet") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = cc["glmnet"], size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = cc["glmnet"], size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = cc["glmnet"], size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('glmnet_alpha.pdf', plt, width = 10, height = 4)
-
-plt <- sim %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "pam") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = cc["pam"], size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = cc["pam"], size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = cc["pam"], size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('pam_alpha.pdf', plt, width = 10, height = 4)
-
-plt <- sim %>%
-  filter(n != 10 & n!= 20) %>%
-  mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
-  mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
-  filter(clf == "myDlda") %>%
-  ggplot(aes(x = n, y = accuracy, group = alpha.rs.level)) +
-  facet_grid(.~ model) +
-  geom_point(aes(alpha = alpha.rs.level), color = cc["myDlda"], size = 1, stroke = 0) +
-  geom_line(aes(alpha = alpha.rs.level), color = cc["myDlda"], size = 0.5) +
-  geom_errorbar(aes(ymin=accuracy-SE, ymax=accuracy+SE, alpha = alpha.rs.level), color = cc["myDlda"], size = 0.3, width=0.3) + # size = 0.7
-  geom_hline(yintercept = 0.84, color = "darkgrey", linetype="dashed", size = 0.5) +
-  geom_hline(data = extra_line, aes(yintercept = yint), color = "darkgrey", linetype="dashed", size = 0.5) +
-  theme_bw() +
-  ylab("Accuracy") +
-  theme(legend.position="bottom") +
-  labs(alpha = TeX("$\\alpha$ sparsity level")) +
-  scale_x_sqrt() +
-  ylim(0.48, 1)
-ggsave('dlda_alpha.pdf', plt, width = 10, height = 4)
-
-## ======================================================================================================
-## ALPHA - NEW COLORS
-## ======================================================================================================
-
 # Line colors
 options(scipen=999)
 cc = scales::seq_gradient_pal("#EC7605", "#3310F7", "Lab")(seq(0, 1, length.out=5))
@@ -310,7 +180,7 @@ names(cc) = c("0.0001", "0.0010", "0.0100", "0.1000", "1.0000")
 sim_crc <- prep_tibble("sim_alpha.RDS")
 # Keep only alpha = 1 result (for clarity)
 sim_crc <- sim_crc[!(sim_crc$model == "simple" & as.numeric(sim_crc$alpha.rs.level) < 1),]
-plt <- sim_crc %>%
+plt_crcS <- sim_crc %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -329,9 +199,8 @@ plt <- sim_crc %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('crcS_alpha.pdf', plt, width = 10, height = 4)
 
-plt <- sim_crc %>%
+plt_crcL <- sim_crc %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -350,9 +219,8 @@ plt <- sim_crc %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('crcL_alpha.pdf', plt, width = 10, height = 4)
 
-plt <- sim_crc %>%
+plt_crcC <- sim_crc %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -371,12 +239,14 @@ plt <- sim_crc %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('crcC_alpha.pdf', plt, width = 10, height = 4)
+
+fig <- ggarrange(plt_crcL, plt_crcS, plt_crcC, nrow = 3, ncol = 1)
+ggsave('crc_alpha_grid.pdf', fig, width = 11, height = 12)
 
 sim <- prep_tibble("sim_alpha_other.RDS")
 # Keep only alpha = 1 result (for clarity)
 sim <- sim[!(sim$model == "simple" & as.numeric(sim$alpha.rs.level) < 1),]
-plt <- sim %>%
+plt_glmnet <- sim %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -395,9 +265,8 @@ plt <- sim %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('glmnet_alpha.pdf', plt, width = 10, height = 4)
 
-plt <- sim %>%
+plt_pam <- sim %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -416,9 +285,8 @@ plt <- sim %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('pam_alpha.pdf', plt, width = 10, height = 4)
 
-plt <- sim %>%
+plt_dlda <- sim %>%
   filter(n != 10 & n!= 20) %>%
   mutate(L.type = recode(L.type, uniform = "Uniform", normal = "Normal", mixture = "Mixture", skewnormal = "Skew normal")) %>%
   mutate(model = recode_factor(model, simple = "Simple", uncorrelated = "Uncorrelated", correlated = "Correlated")) %>%
@@ -437,7 +305,9 @@ plt <- sim %>%
   labs(color = TeX("$\\alpha$ sparsity level")) +
   scale_x_sqrt() +
   ylim(0.48, 1)
-ggsave('dlda_alpha.pdf', plt, width = 10, height = 4)
+
+fig <- ggarrange(plt_glmnet, plt_pam, plt_dlda, nrow = 3, ncol = 1)
+ggsave('all_clf_alpha_grid.pdf', fig, width = 11, height = 12)
 
 ## ======================================================================================================
 ## EPS TYPE
