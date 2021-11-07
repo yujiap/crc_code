@@ -1,6 +1,7 @@
 library(knitr)
 library(kableExtra)
-library(reshape)
+library(reshape2)
+library(plyr)
 
 computeSE = function(results.out) {
   apply(results.out, 2, function(x) sd(x)/sqrt(nrow(results.out)))

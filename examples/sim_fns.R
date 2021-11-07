@@ -1,83 +1,55 @@
-library(pamr)
-library(glmnet)
-library(crc)
-library(magrittr)
-library(parallel)
-library(future)
-
-# --------------------------------------------------------------
-# Wrappers for classifiers
-# --------------------------------------------------------------
-
-crc_predict = function(fit, Ztst, clf=c("S", "L", "C")) {
+crc_predict = function(fit, Ztst, clf = c("S", "L", "C")) {
   beta0 = fit[[paste0("beta0.", clf)]]
   beta1 = fit[[paste0("beta1.", clf)]]
-  scores = Ztst %*% matrix(beta1) + beta0 
-  pred = ifelse(scores < 0, fit$class_names[1], fit$class_names[2])
+  scores = Ztst %*% matrix(beta1) + beta0
+  pred = ifelse(scores > 0, fit$class_names[2], fit$class_names[1])
   return(pred)
 }
 
-
-getaccuracies.crc = function(Ztrn, T_trn, Ztst, Ttst) {
-  results = rep(NA, 4)
-  names(results) = c("S", "L", "C", "n.selected")
-  fit = crc(Ztrn, T_trn, min.eig.ratio = 0) ###
-  
-  S_acc = mean(crc_predict(fit, Ztst, "S")==Ttst)
-  L_acc = mean(crc_predict(fit, Ztst, "L")==Ttst)
-  C_tst_pred = crc_predict(fit, Ztst, "C")
-  C_acc = mean(C_tst_pred==Ttst)
-  results[1:3] = c(S_acc, L_acc, C_acc)
-  results[4] = length(fit$S.selected)
-  ret = list(results = results, selected.ix = fit$S.selected)
-  return(ret)
+train_test_crc = function(Ztrn, Ttrn, Ztst, Ttst, params, fctr_tst=NULL) {
+  min.eig.ratio = params$min.eig.ratio
+  fit = crc(Ztrn, Ttrn, prior = c(0.5, 0.5), min.eig.ratio = min.eig.ratio)
+  accS = mean(crc_predict(fit, Ztst, "S") == Ttst)
+  accL = mean(crc_predict(fit, Ztst, "L") == Ttst)
+  pred = crc_predict(fit, Ztst, "C")
+  accC = mean(pred == Ttst)
+  subgroup_acc = if (!is.null(fctr_tst)) subgroup_acc(pred, Ttst, fctr_tst)
+  # beta0 = fit[["beta0.C"]]
+  # beta1 = fit[["beta1.C"]]
+  # selected.ix = which(fit$S.fit$beta1.S.S != 0)
+  # n.selected = length(selected.ix)
+  return(list(accC = accC, accS = accS, accL = accL, subgroup_acc = subgroup_acc))
 }
 
-
-getaccuracies.glmnet = function(Ztrn, Ttrn, Ztst, Ttst) {
-  results = rep(NA, 3)
-  names(results) = c("glmnet", "lambda.1se", "n.selected")
-  cv.fit = cv.glmnet(Ztrn, Ttrn, family="binomial", alpha=1, standardize=TRUE)
+train_test_glmnet = function(Ztrn, Ttrn, Ztst, Ttst, params, fctr_tst=NULL) {
+  alpha = params$alpha
+  cv.fit = cv.glmnet(Ztrn, Ttrn, family="binomial", alpha=alpha, standardize=TRUE)
   pred = predict(cv.fit, newx=Ztst, type="class")
-  results[1] = mean(pred == Ttst)
-  results[2] = cv.fit$lambda.1se
-  bestlam = which(cv.fit$lambda==cv.fit$lambda.1se)
-  selected.ix = which(cv.fit$glmnet.fit$beta[,bestlam]!=0)
-  results[3] = length(selected.ix)
-  ret = list(results = results, selected.ix = selected.ix)
-  return(ret)
+  acc = mean(pred == Ttst)
+  subgroup_acc = if (!is.null(fctr_tst)) subgroup_acc(pred, Ttst, fctr_tst)
+  # beta1 = coef(cv.fit, s = "lambda.1se")[-1]
+  # beta0 = coef(cv.fit, s = "lambda.1se")[1]
+  # lambda = cv.fit$lambda.1se
+  # bestlam = which(cv.fit$lambda==cv.fit$lambda.1se)
+  # selected.ix = which(cv.fit$glmnet.fit$beta[,bestlam]!=0)
+  # n.selected = length(selected.ix)
+  return(list(acc = acc, subgroup_acc = subgroup_acc))
 }
 
-
-getaccuracies.pam = function(Ztrn, Ttrn, Ztst, Ttst) {
-  results = rep(NA, 3)
-  names(results) = c("pam", "thresh", "n.selected")
+train_test_pam = function(Ztrn, Ttrn, Ztst, Ttst, params=NULL, fctr_tst=NULL) {
   cv.fit = pamr.train(list("x"=t(Ztrn), "y"=Ttrn))
-  t0 = which(cv.fit$errors == min(cv.fit$errors)) %>% max
+  t0 = max(which(cv.fit$errors == min(cv.fit$errors)))
   best.thresh = cv.fit$threshold[t0]
-  pred = pamr.predict(cv.fit, newx=t(Ztst), threshold=best.thresh)
-  results[1] = mean(pred == Ttst)
-  results[2] = best.thresh
   selected.ix = pamr.listgenes(fit=cv.fit, list("x"=t(Ztrn), "y"=Ttrn, "geneid"=1:ncol(Ztrn)), threshold=best.thresh)[,"id"]
-  results[3] = cv.fit$nonzero[t0]
-  ret = list(results = results, selected.ix = selected.ix)
-  return(ret)
+  pred = pamr.predict(cv.fit, newx=t(Ztst), threshold=best.thresh)
+  acc = mean(pred == Ttst)
+  subgroup_acc = if (!is.null(fctr_tst)) subgroup_acc(pred, Ttst, fctr_tst)
+  # n.selected = cv.fit$nonzero[t0]
+  return(list(acc=acc, subgroup_acc = subgroup_acc))
 }
-
-
-getaccuracies.myDlda = function(Ztrn, Ttrn, Ztst, Ttst) {
-  results = rep(NA, 2)
-  names(results) = c("myDlda", "n.selected")
-  fit = myDlda(Ztrn, Ttrn)
-  pred = myDlda_predict(fit, Ztst)$pred
-  results[1] = mean(pred == Ttst)
-  results[2] = length(fit$selected.idx)
-  ret = list(results = results, selected.ix = fit$selected.idx)
-  return(ret)
-}
-
 
 myDlda = function(S, class, prior = c(0.5, 0.5), S.grid = crc:::get_S.grid("default", S)) {
+  if (sum(apply(S, 2, sd) == 0) > 0) stop("One or more feature variances are constant.")
   I = crc:::get_I(class)
   n = length(class)
   n1 = sum(I[,1])
@@ -124,83 +96,226 @@ myDlda = function(S, class, prior = c(0.5, 0.5), S.grid = crc:::get_S.grid("defa
   topN = order(abs(t), decreasing = T)[1:S.grid[idx]]
   beta1 = (Mu2[topN] - Mu1[topN]) / sigmas2[topN]
   beta0 = log(prior[2]/prior[1]) - 0.5*sum((Mu2[topN] + Mu1[topN])*beta1)
-
+  
   return(list(
-              "beta1" = beta1,
-              "beta0" = beta0,
-              "scores.LOO"=scores.LOO_N[,idx],
-              "selected.idx"=topN,
-              "v"=thr_acc,
-              "class_names" = colnames(I)
+    "beta1" = beta1,
+    "beta0" = beta0,
+    "scores.LOO"=scores.LOO_N[,idx],
+    "selected.idx"=topN,
+    "v"=thr_acc,
+    "class_names" = colnames(I)
   ))
 }
 
-myDlda_predict = function(fit, Ytest) {
-  scores = Ytest[, fit$selected.idx, drop = F] %*% fit$beta1 + fit$beta0
+train_test_myDlda = function(Ztrn, Ttrn, Ztst, Ttst, params=NULL, fctr_tst=NULL) {
+  fit = myDlda(Ztrn, Ttrn, prior = c(0.5, 0.5))
+  beta1 = fit$beta1
+  beta0 = fit$beta0
+  scores = Ztst[, fit$selected.idx, drop = F] %*% fit$beta1 + fit$beta0
   pred = ifelse(scores > 0, fit$class_names[2], fit$class_names[1])
-  return(list('scores'=scores, 'pred'=pred))
+  acc = mean(pred == Ttst)
+  subgroup_acc = if (!is.null(fctr_tst)) subgroup_acc(pred, Ttst, fctr_tst)
+  # n.selected = length(fit$selected.idx)
+  return(list(acc = acc, subgroup_acc = subgroup_acc))
 }
 
-# --------------------------------------------------------------
-# Simulation fn
-# --------------------------------------------------------------
+chunked_parLapply = function(nsim, f, params, predictors, classes, cl) {
+  ncores = length(cl)
+  # if (ncores == 1) warning("Only using one core in parallel execution.")
+  x = 1:nsim
+  nchunks = nsim / ncores
+  # if (nchunks < 1) stop("ncores must be <= nsim.")
+  splits = lapply(1:nchunks, function(i) rep(i, ncores))
+  if (nsim %% floor(nchunks) != 0) {
+    splits[[(nchunks+1)]] = rep((floor(nchunks)+1), nsim %% floor(nchunks))
+  }
+  i.list = split(x, factor(unlist(splits)))
+  result.list = list()
+  for (i in seq_along(i.list)) {
+    i.vec = i.list[[i]]
+    result.list[i.vec] = parLapply(cl, x[i.vec], 
+                                   function(i_sim, params, predictors, classes) f(params, predictors, classes), 
+                                   params = params, predictors = predictors, classes = classes)
+  }
+  return(result.list)
+}
 
-run_sim = function(clf, predictors, classes, Nsim, downsample, train_size, filename) {
-	GETACCURACIES = match.fun(paste0("getaccuracies.", clf))
 
-	classes = as.factor(classes)
-	n1=sum(classes==levels(classes)[1])
-	n2=sum(classes==levels(classes)[2])
-	n0=min(n1,n2)
-	if (train_size < 1) n0trn = floor(n0*train_size)
-	if (train_size >= 1) n0trn = train_size
-    if (n0trn >= n0) {print("train_size too large"); return()}
-    n0tst = n0 - n0trn
-    p = ncol(predictors)
-
-	wrappers = c("crc_predict",
-			"myDlda",
-			"myDlda_predict", 
-			"getaccuracies.crc", 
-			"getaccuracies.glmnet",
-			"getaccuracies.pam",
-			"getaccuracies.myDlda")
-
-	n_cores = future::availableCores()
-	cl = makeCluster(n_cores)
-	a=clusterCall(cl, function() library(glmnet))
-	a=clusterCall(cl, function() library(pamr))
-	a=clusterCall(cl, function() library(crc))
-	a=clusterCall(cl, function() library(magrittr))
-	clusterSetRNGStream(cl, iseed=123)
-	clusterExport(cl=cl, varlist=wrappers)
-
-	repl = parLapply(cl, 1:Nsim, function(i_sim, predictors, classes, n0, n0trn, GETACCURACIES) {
-	    sample1 = sample(which(classes==levels(classes)[1]), n0)
-	    sample2 = sample(which(classes==levels(classes)[2]), n0)
-	    samplep = sample(ncol(predictors),floor(ncol(predictors)*downsample))
-	    trn = c(sample1[1:n0trn], sample2[1:n0trn])
-	    tst = c(sample1[(n0trn+1):n0], sample2[(n0trn+1):n0])
-	    
-	    Ttrn = classes[trn]
-	    Ztrn = predictors[trn,samplep,drop=FALSE]
-	    Ttst = classes[tst]
-	    Ztst = predictors[tst,samplep,drop=FALSE]  
-		return(GETACCURACIES(Ztrn, Ttrn, Ztst, Ttst))
-	}, 
-	predictors=predictors, classes=classes, n0=n0, n0trn=n0trn, GETACCURACIES=GETACCURACIES)
-  stopCluster(cl)
+## Experiment (tracks runtimes)
+experiment_rt = function(params, predictors, classes) {
+  clf = match.fun(paste0("train_test_", params$clf))
+  xp = unlist(params$xp, recursive = FALSE)
+  train_size = params$train_size
+  downsample = params$downsample
   
-    results = list()
-    results$out = sapply(repl, function(x) x$results) %>% t
-    results$selected.ix = lapply(repl, function(x) x$selected.ix )
+  n1 = sum(classes==levels(classes)[1])
+  n2 = sum(classes==levels(classes)[2])
+  n0 = min(n1,n2)
+  if (train_size < 1) n0trn = floor(n0*train_size)
+  if (train_size >= 1) n0trn = train_size
+  if (n0trn >= n0) {
+    print("train_size too large")
+    return()
+  }
+  n0tst = n0 - n0trn
+  p = ncol(predictors)
   
-    results$clf = GETACCURACIES
-    results$class_names = levels(classes)
-    results$class_sizes = c(n1, n2)
-    results$Nsim = Nsim
-    results$n0 = n0
-    results$n0tst = n0tst
-    results$p = p
-    save(results, file=filename)
+  sample1 = sample(which(classes==levels(classes)[1]), n0)
+  sample2 = sample(which(classes==levels(classes)[2]), n0)
+  samplep = sample(ncol(predictors),floor(ncol(predictors)*downsample))
+  trn = c(sample1[1:n0trn], sample2[1:n0trn])
+  tst = c(sample1[(n0trn+1):n0], sample2[(n0trn+1):n0])
+  
+  Ttrn = classes[trn]
+  Ztrn = predictors[trn,samplep,drop=FALSE]
+  Ttst = classes[tst]
+  Ztst = predictors[tst,samplep,drop=FALSE]
+  
+  ## Drop constant features
+  is_constant = apply(Ztrn, 2, function(x) sd(x)==0)
+  if (sum(is_constant)!=0) cat("Dropping constant columns.\n")
+  Ztrn = Ztrn[,!is_constant]
+  Ztst = Ztst[,!is_constant]
+  
+  runtime = system.time({res = clf(Ztrn, Ttrn, Ztst, Ttst, xp)})['elapsed']
+  res$runtime = runtime
+  return(res)
+}
+
+## For leave-subject-out simulations, sample subjects (not observations)
+sample_clusters = function(id_clusters, id_class, train_size) {
+  classes = factor(id_class)
+  n1=sum(classes==levels(classes)[1])
+  n2=sum(classes==levels(classes)[2])
+  n0=min(n1,n2)
+  
+  if (train_size < 1) n0trn = floor(n0*train_size)
+  if (train_size >= 1) n0trn = train_size
+  if (n0trn >= n0) {print("train_size too large"); return()}
+  n0tst = n0 - n0trn
+  
+  sample1 = sample(which(classes==levels(classes)[1]), n0)
+  sample2 = sample(which(classes==levels(classes)[2]), n0)
+  clusters_trn = c(sample1[1:n0trn], sample2[1:n0trn])
+  clusters_tst = c(sample1[(n0trn+1):n0], sample2[(n0trn+1):n0])
+  samples_trn = unlist(id_clusters[clusters_trn])
+  samples_tst = unlist(id_clusters[clusters_tst])
+  
+  return(list("clusters_trn"=clusters_trn,
+              "clusters_tst"=clusters_tst,
+              "samples_trn"=samples_trn, 
+              "samples_tst"=samples_tst,
+              "n0_trn"=n0trn,
+              "n0tst"=n0tst))
+}
+
+## For leave-subject-out simulations, calculates accuracy within subgroups
+subgroup_acc = function(pred, Ttst, fctr_tst) {
+  ret = rep(NA, length(levels(fctr_tst)))
+  names(ret) = levels(fctr_tst)
+  for (lvl in levels(fctr_tst)) {
+    lvl.ix = which(fctr_tst==lvl)
+    if (length(lvl.ix)!=0) {
+      lvl.acc = mean((pred==Ttst)[lvl.ix])
+      ret[lvl] = lvl.acc	
+    }
+  }
+  return(ret)
+}
+
+## Leave-subject-out experiment (tracks runtimes)
+experiment_lso_rt = function(params, predictors, classes) {
+  clf = match.fun(paste0("train_test_", params$clf))
+  xp = unlist(params$xp, recursive = FALSE)
+  train_size = params$train_size
+  downsample = params$downsample
+  id = unlist(params$id, recursive = FALSE)
+  fctr = unlist(params$fctr, recursive = FALSE)
+  
+  samplep = sample(ncol(predictors),floor(ncol(predictors)*downsample))
+  id_clusters = lapply(unique(id), function(x) which(id==x)) # id:{samples corresp to this id}
+  id_class = sapply(unique(id), function(x) classes[which(id==x)][1]) # id:cluster
+  sc = sample_clusters(id_clusters, id_class, train_size)
+  Ztrn = predictors[sc$samples_trn,samplep,drop=FALSE]
+  Ztst = predictors[sc$samples_tst,samplep,drop=FALSE]
+  Ttrn = classes[sc$samples_trn]
+  Ttst = classes[sc$samples_tst]
+  fctr_tst = fctr[sc$samples_tst]
+  
+  ## Drop constant features
+  is_constant = apply(Ztrn, 2, function(x) sd(x)==0)
+  if (sum(is_constant)!=0) cat("Dropping constant columns.\n")
+  Ztrn = Ztrn[,!is_constant]
+  Ztst = Ztst[,!is_constant]
+  
+  runtime = system.time({res = clf(Ztrn, Ttrn, Ztst, Ttst, xp, fctr_tst)})['elapsed']
+  res$runtime = runtime
+  return(res)
+}
+
+## Function to run experiment
+experiment = function(params, predictors, classes) {
+  clf = match.fun(paste0("train_test_", params$clf))
+  xp = unlist(params$xp, recursive = FALSE)
+  train_size = params$train_size
+  downsample = params$downsample
+
+  n1 = sum(classes==levels(classes)[1])
+  n2 = sum(classes==levels(classes)[2])
+  n0 = min(n1,n2)
+  if (train_size < 1) n0trn = floor(n0*train_size)
+  if (train_size >= 1) n0trn = train_size
+  if (n0trn >= n0) {
+    print("train_size too large")
+    return()
+  }
+  n0tst = n0 - n0trn
+  p = ncol(predictors)
+
+  sample1 = sample(which(classes==levels(classes)[1]), n0)
+  sample2 = sample(which(classes==levels(classes)[2]), n0)
+  samplep = sample(ncol(predictors),floor(ncol(predictors)*downsample))
+  trn = c(sample1[1:n0trn], sample2[1:n0trn])
+  tst = c(sample1[(n0trn+1):n0], sample2[(n0trn+1):n0])
+
+  Ttrn = classes[trn]
+  Ztrn = predictors[trn,samplep,drop=FALSE]
+  Ttst = classes[tst]
+  Ztst = predictors[tst,samplep,drop=FALSE]
+  
+  ## Drop constant features
+  is_constant = apply(Ztrn, 2, function(x) sd(x)==0)
+  if (sum(is_constant)!=0) cat("Dropping constant columns.\n")
+  Ztrn = Ztrn[,!is_constant]
+  Ztst = Ztst[,!is_constant]
+  return(clf(Ztrn, Ttrn, Ztst, Ttst, xp))
+}
+
+
+## Function to run [l]eave [s]ubject [o]ut experiment
+experiment_lso = function(params, predictors, classes) {
+  clf = match.fun(paste0("train_test_", params$clf))
+  xp = unlist(params$xp, recursive = FALSE)
+  train_size = params$train_size
+  downsample = params$downsample
+  id = unlist(params$id, recursive = FALSE)
+  fctr = unlist(params$fctr, recursive = FALSE)
+
+  samplep = sample(ncol(predictors),floor(ncol(predictors)*downsample))
+  id_clusters = lapply(unique(id), function(x) which(id==x)) # id:{samples corresp to this id}
+  id_class = sapply(unique(id), function(x) classes[which(id==x)][1]) # id:cluster
+  sc = sample_clusters(id_clusters, id_class, train_size)
+  Ztrn = predictors[sc$samples_trn,samplep,drop=FALSE]
+  Ztst = predictors[sc$samples_tst,samplep,drop=FALSE]
+  Ttrn = classes[sc$samples_trn]
+  Ttst = classes[sc$samples_tst]
+  fctr_tst = fctr[sc$samples_tst]
+  
+  ## Drop constant features
+  is_constant = apply(Ztrn, 2, function(x) sd(x)==0)
+  if (sum(is_constant)!=0) cat("Dropping constant columns.\n")
+  Ztrn = Ztrn[,!is_constant]
+  Ztst = Ztst[,!is_constant]
+  
+  return(clf(Ztrn, Ttrn, Ztst, Ttst, xp, fctr_tst))
 }

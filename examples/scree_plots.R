@@ -9,9 +9,7 @@ screePlot = function(Z, title="") {
 	print(sum(pct.var[1:10]))
 	df = data.frame("pc"=(1:length(pct.var)), "pct.var"=pct.var)
 	ggplot(df[1:10,], aes(x=pc, y=pct.var)) + 
-	scale_x_continuous(
-	    breaks = function(x) unique(
-	      floor(pretty(seq(0, (max(x) + 1) * 1.1))))) +
+	scale_x_continuous(breaks = function(x) unique(floor(pretty(seq(0, (max(x) + 1) * 1.1))))) +
 	ylim(c(0, 50)) +
 	labs(title=title, x="", y="") +
 	theme_bw() +
@@ -23,7 +21,8 @@ data = readRDS("processed_data/GSE_101794/GSE101794_processed.RDS")
 crohns.expr = screePlot(data$Y, "Crohn's (Expr.)")
 
 data = readRDS("processed_data/GSE_112611/GSE112611_processed.RDS")
-crohns.methyl = screePlot(data$Y, "Crohn's (Methyl.)")
+BL.ix = which(data$phenotype$`baseline vs follow-up:ch1` == "BL")
+crohns.methyl = screePlot(data$Y[BL.ix,], "Crohn's (Methyl.)")
 
 data = readRDS("processed_data/E_MTAB_1532/EMTAB1532_processed.RDS")
 colorectal = screePlot(data$Y, "Colorectal Cancer")
@@ -56,5 +55,4 @@ alz.g = screePlot(data$beta[fctr=="Glia",], "Alzheimer's (G)")
 alz.n = screePlot(data$beta[fctr=="Neuron",], "Alzheimer's (N)")
 
 all.datasets = grid.arrange(asthma, crohns.expr, crohns.methyl, colorectal, fasd, sepsis, sepsis.cd4, sepsis.cd8, sepsis.cd14, alz, alz.bt, alz.bf, alz.g, alz.n, ncol=4)
-ggsave("scree_plots.pdf", all.datasets, width = 10, height = 10)
-
+ggsave("scree_plots_no_lines.pdf", all.datasets, width = 10, height = 10)
